@@ -32,5 +32,10 @@ if (-not $changes) {
 
 git commit -m $msg
 Write-Host "Pushing to origin main..."
+git branch -M main
+git pull origin main --allow-unrelated-histories --no-edit 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Pull skipped or merge needed; trying push..."
+}
 git push -u origin main
 Write-Host "Done: https://github.com/nozomi0525/zju-helperr"
