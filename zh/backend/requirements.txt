@@ -1,0 +1,6 @@
+djangorestframework
+Django>=4.2
+djangorestframework-simplejwt
+gunicorn
+psycopg2-binary
+django-cors-headers
