@@ -19,3 +19,6 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local dev copy (sync to repo root before push)
+zh/
