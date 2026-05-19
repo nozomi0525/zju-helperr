@@ -3,11 +3,25 @@ from .models import User, Task, Order, Review, Message, Report, Blacklist
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+<<<<<<< HEAD
+=======
+    publish_count = serializers.SerializerMethodField()
+    accept_count = serializers.SerializerMethodField()
+>>>>>>> 1e3022feb94a8b5986483127b6972864705b88a6
 
     class Meta:
         model = User
         fields = ['id','username','password','first_name','last_name','phone','wechat','avatar','credit_score','publish_count','accept_count']
 
+<<<<<<< HEAD
+=======
+    def get_publish_count(self, obj):
+        return obj.published.count()
+
+    def get_accept_count(self, obj):
+        return obj.orders.count()
+
+>>>>>>> 1e3022feb94a8b5986483127b6972864705b88a6
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         user = User(**validated_data)

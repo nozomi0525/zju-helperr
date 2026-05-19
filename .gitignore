@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.venv/
+venv/
+
+# Django
+zh/backend/staticfiles/
+backend/staticfiles/
+
+# Node
+node_modules/
+dist/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local dev copy (sync to repo root before push)
+zh/
