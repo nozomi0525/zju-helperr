@@ -17,6 +17,20 @@
       <input v-model="form.time" placeholder="时间（可选）" />
     </div>
 
+    <div class="form-row" style="align-items:center">
+      <label style="display:flex;align-items:center;gap:8px;margin:0">
+        <input type="radio" value="free" v-model="form.payment" /> 无偿
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:0">
+        <input type="radio" value="paid" v-model="form.payment" /> 有偿
+      </label>
+      <div style="flex:1;color:#64748b;font-size:12px">选择“有偿”时请填写下面的有偿内容</div>
+    </div>
+
+    <div class="form-row" v-if="form.payment==='paid'">
+      <input v-model="form.reward" placeholder="报酬描述（例如：20元 / 赠品 / 面议）" />
+    </div>
+
     <div class="form-row">
       <textarea v-model="form.remark" rows="4" placeholder="备注 / 详细说明（可填写联系方式、特殊要求等）" style="flex:1"></textarea>
     </div>
@@ -39,6 +53,8 @@ export default {
         title: '',
         location: '',
         time: '',
+        payment: 'free',
+        reward: '',
         remark: ''
       }
     }
@@ -46,10 +62,19 @@ export default {
   methods: {
     async publish() {
       if (!this.form.title.trim()) { alert('请填写标题'); return }
+      if (this.form.payment === 'paid' && !this.form.reward.trim()) {
+        alert('请选择有偿并填写报酬描述')
+        return
+      }
       try {
         const token = localStorage.getItem('access')
         if (!token) { alert('请先登录'); return }
-        await axios.post('/api/tasks/', this.form, { headers: { Authorization: 'Bearer ' + token } })
+        // prepare payload: remove empty strings that backend may not expect
+        const payload = { ...this.form }
+        if (payload.payment !== 'paid') {
+          delete payload.reward
+        }
+        await axios.post('/api/tasks/', payload, { headers: { Authorization: 'Bearer ' + token } })
         alert('发布成功')
         this.$router.push('/')
       } catch (e) {
