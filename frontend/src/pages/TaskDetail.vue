@@ -62,7 +62,12 @@ export default {
       return 'status-default'
     },
     formattedReward() {
-      return this.task.is_paid ? (this.task.reward ? `¥${this.task.reward}` : '面议') : '无偿'
+      if (!this.task) return ''
+      if (!this.task.is_paid) return '无偿'
+      if (!this.task.reward) return '面议'
+      // If reward looks like a number, show currency symbol; otherwise display as-is
+      const r = String(this.task.reward).trim()
+      return /^\d+(\.\d+)?$/.test(r) ? `¥${r}` : r
     },
     deadlineText() {
       if (!this.task.deadline) return '未设置'
