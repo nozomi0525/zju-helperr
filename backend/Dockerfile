@@ -5,6 +5,7 @@ WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . /app/
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 RUN mkdir -p /vol/web/media
 EXPOSE 8000
 CMD ["/bin/sh", "/app/entrypoint.sh"]
