@@ -22,3 +22,13 @@ Thumbs.db
 
 # Local dev copy (sync to repo root before push)
 zh/
+
+# Django
+db.sqlite3
+staticfiles/
+__pycache__/
+*.pyc
+
+# Docker
+backend-test/
+docker-compose-test.yml
