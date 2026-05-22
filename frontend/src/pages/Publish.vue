@@ -35,11 +35,11 @@
       </div>
 
       <div class="login-form-row" v-if="form.payment==='paid'">
-        <input v-model="form.reward" placeholder="报酬描述（例如：20元 / 赠品 / 面议）" />
+        <input v-model="form.reward" placeholder="报酬描述（例如：5元 / 赠品 / 面议）" />
       </div>
 
       <div class="login-form-row">
-        <input v-model="form.remark" placeholder="备注（可填写联系方式、特殊要求等）" />
+        <input v-model="form.remark" placeholder="任务说明" />
       </div>
 
       <div class="login-actions">
