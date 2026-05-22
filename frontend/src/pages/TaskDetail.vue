@@ -37,6 +37,59 @@
       <p class="contact-tip">此信息仅对接单者可见，请勿随意传播。</p>
     </div>
 
+    <div v-if="orderInfo" class="detail-section order-section">
+      <div class="section-title">订单进度</div>
+      <p class="order-meta">
+        接单人：{{ orderInfo.acceptor_username }}
+        <span v-if="orderInfo.status === 'pending'"> · 等待双方确认完成</span>
+        <span v-else> · 已完成，可互评</span>
+      </p>
+      <div class="confirm-status">
+        <span :class="orderInfo.publisher_confirmed ? 'ok' : 'pending'">
+          发布者{{ orderInfo.publisher_confirmed ? '已确认' : '未确认' }}
+        </span>
+        <span :class="orderInfo.acceptor_confirmed ? 'ok' : 'pending'">
+          接单者{{ orderInfo.acceptor_confirmed ? '已确认' : '未确认' }}
+        </span>
+      </div>
+      <button
+        v-if="orderInfo.can_confirm"
+        class="btn"
+        @click="confirmComplete"
+      >确认任务已完成</button>
+    </div>
+
+    <div v-if="orderInfo && orderInfo.can_review" class="detail-section review-section">
+      <div class="section-title">评价 {{ orderInfo.review_target_username }}</div>
+      <p class="review-hint">订单已完成，请为对方打分（1-5 星），评价将影响信用分。</p>
+      <div class="star-row">
+        <button
+          v-for="n in 5"
+          :key="n"
+          type="button"
+          class="star-btn"
+          :class="{ active: reviewForm.rating >= n }"
+          @click="reviewForm.rating = n"
+        >★</button>
+      </div>
+      <textarea
+        v-model="reviewForm.comment"
+        class="review-input"
+        placeholder="选填：说说合作体验"
+        rows="3"
+      />
+      <button class="btn" @click="submitReview">提交评价</button>
+    </div>
+
+    <div v-if="orderInfo && orderInfo.my_review" class="detail-section review-done">
+      <div class="section-title">我的评价</div>
+      <p class="section-content">
+        已对 {{ orderInfo.review_target_username }} 评分：
+        <strong>{{ orderInfo.my_review.rating }} 星</strong>
+        <span v-if="orderInfo.my_review.comment"> — {{ orderInfo.my_review.comment }}</span>
+      </p>
+    </div>
+
     <div class="detail-actions">
       <button
         v-if="logged"
@@ -57,9 +110,13 @@ export default {
     return {
       task: {},
       logged: false,
+      reviewForm: { rating: 5, comment: '' },
     }
   },
   computed: {
+    orderInfo() {
+      return this.task.order_info || null
+    },
     categoryText() {
       const map = {
         carpool: '拼车',
@@ -123,12 +180,49 @@ export default {
         alert('接单成功')
         await this.loadTask()
       } catch (e) {
-        const msg = e.response?.data?.detail
-          || (e.response?.data && Object.values(e.response.data).flat().join(' '))
-          || '接单失败，请重试'
-        alert(msg)
+        alert(this.errorMessage(e, '接单失败，请重试'))
         await this.loadTask()
       }
+    },
+    async confirmComplete() {
+      if (!this.orderInfo?.can_confirm) return
+      try {
+        await axios.post(`/api/orders/${this.orderInfo.order_id}/confirm/`, {
+          as_role: this.orderInfo.my_role,
+        })
+        alert('已确认完成')
+        await this.loadTask()
+      } catch (e) {
+        alert(this.errorMessage(e, '确认失败'))
+        await this.loadTask()
+      }
+    },
+    async submitReview() {
+      if (!this.orderInfo?.can_review) return
+      if (!this.reviewForm.rating) {
+        alert('请选择评分')
+        return
+      }
+      try {
+        await axios.post('/api/reviews/', {
+          order: this.orderInfo.order_id,
+          rating: this.reviewForm.rating,
+          comment: this.reviewForm.comment.trim(),
+        })
+        alert('评价成功，对方信用分已更新')
+        await this.loadTask()
+      } catch (e) {
+        alert(this.errorMessage(e, '评价失败'))
+      }
+    },
+    errorMessage(e, fallback) {
+      const data = e.response?.data
+      if (!data) return fallback
+      if (typeof data.detail === 'string') return data.detail
+      if (typeof data === 'object') {
+        return Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join('\n')
+      }
+      return fallback
     },
   },
 }
@@ -253,5 +347,74 @@ export default {
   color: #64748b !important;
   cursor: not-allowed;
   box-shadow: none;
+}
+.order-section {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.order-meta {
+  margin: 0 0 12px;
+  color: #334155;
+  font-size: 0.95rem;
+}
+.confirm-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+.confirm-status .ok {
+  color: #166534;
+  font-weight: 600;
+}
+.confirm-status .pending {
+  color: #64748b;
+}
+.review-section {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.review-hint {
+  margin: 0 0 12px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+.star-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.star-btn {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.star-btn.active {
+  color: #f59e0b;
+}
+.review-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 15px;
+  resize: vertical;
+}
+.review-done {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 16px 18px;
 }
 </style>

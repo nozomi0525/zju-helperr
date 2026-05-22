@@ -53,6 +53,9 @@ class Review(models.Model):
     role_type = models.CharField(max_length=32)
     created_at = models.DateTimeField(default=timezone.now)
 
+    class Meta:
+        unique_together = [['order', 'reviewer']]
+
 class Message(models.Model):
     from_user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='sent_messages')
     to_user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='recv_messages')

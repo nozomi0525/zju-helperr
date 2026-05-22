@@ -7,7 +7,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from .models import User, Task, Order, Review, Message, Report, Blacklist
 from .serializers import UserSerializer, TaskSerializer, OrderSerializer, ReviewSerializer, MessageSerializer, ReportSerializer, BlacklistSerializer
-from django.db.models import Avg
+from .credit import recalculate_credit_score
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -20,6 +20,25 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_reviews(self, request):
+        reviews = (
+            Review.objects.filter(target=request.user)
+            .select_related('reviewer', 'order', 'order__task')
+            .order_by('-created_at')[:20]
+        )
+        data = [
+            {
+                'rating': r.rating,
+                'comment': r.comment,
+                'reviewer_username': r.reviewer.username,
+                'task_title': r.order.task.title,
+                'created_at': r.created_at,
+            }
+            for r in reviews
+        ]
+        return Response(data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -75,30 +94,69 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         order = self.get_object()
-        role = request.data.get('as_role')
-        if role == 'publisher':
+        user = request.user
+        if order.status != 'pending':
+            raise ValidationError('该订单已结束，无法再次确认')
+        if order.task.publisher_id == user.id:
+            if order.publisher_confirmed:
+                raise ValidationError('您已确认过完成')
             order.publisher_confirmed = True
-        elif role == 'acceptor':
+        elif order.acceptor_id == user.id:
+            if order.acceptor_confirmed:
+                raise ValidationError('您已确认过完成')
             order.acceptor_confirmed = True
-        order.save()
+        else:
+            raise ValidationError('无权操作该订单')
+        order.save(update_fields=['publisher_confirmed', 'acceptor_confirmed'])
         if order.publisher_confirmed and order.acceptor_confirmed:
             order.status = 'completed'
             order.task.status = 'completed'
-            order.task.save()
-            order.save()
-        return Response({'status': 'ok'})
+            order.task.save(update_fields=['status', 'updated_at'])
+            order.save(update_fields=['status'])
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all().order_by('-created_at')
     serializer_class = ReviewSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Review.objects.all().order_by('-created_at')
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                self.perform_create(serializer)
+        except ValidationError:
+            raise
+        except IntegrityError:
+            raise ValidationError({'detail': '您已评价过该订单'})
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        review = serializer.save()
-        # update target credit score
-        avg = Review.objects.filter(target=review.target).aggregate(avg=Avg('rating'))['avg']
-        review.target.credit_score = avg or review.target.credit_score
-        review.target.save()
+        user = self.request.user
+        order = serializer.validated_data['order']
+        if order.status != 'completed':
+            raise ValidationError('订单完成后才能评价')
+        if order.reviews.filter(reviewer=user).exists():
+            raise ValidationError('您已评价过该订单')
+
+        task = order.task
+        if task.publisher_id == user.id:
+            target = order.acceptor
+            role_type = 'publisher'
+        elif order.acceptor_id == user.id:
+            target = task.publisher
+            role_type = 'acceptor'
+        else:
+            raise ValidationError('无权评价该订单')
+
+        review = serializer.save(reviewer=user, target=target, role_type=role_type)
+        recalculate_credit_score(target)
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all().order_by('-created_at')

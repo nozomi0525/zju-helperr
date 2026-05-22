@@ -37,11 +37,16 @@
         </div>
 
         <div class="profile-credit">
-          <span class="profile-credit-label">信用分</span>
+          <div class="profile-credit-head">
+            <span class="profile-credit-label">信用分</span>
+            <span class="profile-credit-badge">{{ me.credit_level || '—' }}</span>
+          </div>
           <span class="profile-credit-value">{{ formatScore(me.credit_score) }}</span>
+          <span class="profile-credit-sub">满分 5.0 · 共 {{ me.review_count ?? 0 }} 条评价</span>
           <div class="profile-credit-bar">
             <div class="profile-credit-fill" :style="{ width: creditPercent + '%' }"></div>
           </div>
+          <p class="profile-credit-tip">信用分根据收到的互评计算（默认 5.0，评价越多越接近真实均值）</p>
         </div>
 
         <div class="profile-stats">
@@ -67,6 +72,18 @@
           </div>
         </div>
 
+        <div v-if="reviews.length" class="profile-reviews">
+          <div class="profile-reviews-title">收到的评价</div>
+          <div v-for="(r, i) in reviews" :key="i" class="profile-review-item">
+            <div class="profile-review-top">
+              <span class="profile-review-user">{{ r.reviewer_username }}</span>
+              <span class="profile-review-stars">{{ '★'.repeat(r.rating) }}{{ '☆'.repeat(5 - r.rating) }}</span>
+            </div>
+            <div class="profile-review-task">{{ r.task_title }}</div>
+            <p v-if="r.comment" class="profile-review-comment">{{ r.comment }}</p>
+          </div>
+        </div>
+
         <div class="profile-actions profile-actions-single">
           <button class="profile-btn" @click="$router.push('/')">浏览帖子</button>
         </div>
@@ -79,7 +96,7 @@
 import axios from 'axios'
 export default {
   data() {
-    return { me: null, loading: false, loadError: '' }
+    return { me: null, reviews: [], loading: false, loadError: '' }
   },
   computed: {
     isLoggedIn() {
@@ -99,7 +116,7 @@ export default {
     },
     creditPercent() {
       const score = Number(this.me?.credit_score ?? 5)
-      return Math.min(100, Math.max(0, (score / 5) * 100))
+      return Math.min(100, Math.max(0, ((score - 1) / 4) * 100))
     }
   },
   mounted() {
@@ -116,8 +133,12 @@ export default {
       this.loading = true
       this.loadError = ''
       try {
-        const r = await axios.get('/api/users/me/')
-        this.me = r.data
+        const [meRes, reviewsRes] = await Promise.all([
+          axios.get('/api/users/me/'),
+          axios.get('/api/users/my_reviews/'),
+        ])
+        this.me = meRes.data
+        this.reviews = reviewsRes.data
       } catch (e) {
         this.me = null
         const status = e.response?.status
@@ -261,10 +282,39 @@ export default {
   text-align: left;
 }
 
+#profile-page-wrapper .profile-credit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
 #profile-page-wrapper .profile-credit-label {
   font-size: 13px;
   color: #64748b;
-  margin-right: 8px;
+}
+
+#profile-page-wrapper .profile-credit-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #667eea;
+  background: #eef2ff;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+#profile-page-wrapper .profile-credit-sub {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+#profile-page-wrapper .profile-credit-tip {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
 }
 
 #profile-page-wrapper .profile-credit-value {
@@ -321,6 +371,60 @@ export default {
   width: 1px;
   height: 36px;
   background: #e8ecf4;
+}
+
+#profile-page-wrapper .profile-reviews {
+  text-align: left;
+  margin-bottom: 20px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+#profile-page-wrapper .profile-reviews-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 10px;
+}
+
+#profile-page-wrapper .profile-review-item {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+
+#profile-page-wrapper .profile-review-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+#profile-page-wrapper .profile-review-user {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+#profile-page-wrapper .profile-review-stars {
+  color: #f59e0b;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+#profile-page-wrapper .profile-review-task {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 6px;
+}
+
+#profile-page-wrapper .profile-review-comment {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
 }
 
 #profile-page-wrapper .profile-info {
