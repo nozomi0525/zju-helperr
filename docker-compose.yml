@@ -3,17 +3,25 @@ services:
   web:
     build: ./backend
     container_name: campus_help_web
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
     environment:
       - DEBUG=1
-    depends_on: []
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/admin/')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
   frontend:
     build: ./frontend
     container_name: campus_help_frontend
+    restart: unless-stopped
     ports:
       - "3000:80"
     depends_on:
-      - web
+      web:
+        condition: service_healthy
