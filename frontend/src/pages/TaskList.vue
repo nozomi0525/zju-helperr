@@ -14,6 +14,11 @@
           <option value="emergency">特需</option>
           <option value="other">其他</option>
         </select>
+        <select v-model="paidFilter">
+          <option value="">全部付费类型</option>
+          <option value="paid">有偿</option>
+          <option value="free">无偿</option>
+        </select>
         <button class="btn primary" @click="load">刷新</button>
       </div>
     </div>
@@ -50,6 +55,7 @@ export default {
     return {
       tasks: [],
       category: '',
+      paidFilter: '',
       logged: false
     }
   },
@@ -77,10 +83,18 @@ export default {
       return 'status-default'
     },
     async load() {
-      let url = '/api/tasks/'
-      if (this.category) url += '?category=' + encodeURIComponent(this.category)
+      // build query params for category and paid filter
+      const params = new URLSearchParams()
+      if (this.category) params.append('category', this.category)
+      // backend may or may not support 'is_paid' param; always apply client-side filtering as fallback
+      if (this.paidFilter === 'paid') params.append('is_paid', 'true')
+      if (this.paidFilter === 'free') params.append('is_paid', 'false')
+      let url = '/api/tasks/' + (params.toString() ? ('?' + params.toString()) : '')
       const r = await axios.get(url)
       this.tasks = r.data
+      // client-side filtering to ensure results respect paidFilter even if backend ignores param
+      if (this.paidFilter === 'paid') this.tasks = this.tasks.filter(t => !!t.is_paid)
+      if (this.paidFilter === 'free') this.tasks = this.tasks.filter(t => !t.is_paid)
     },
     async accept(t) {
       try {
