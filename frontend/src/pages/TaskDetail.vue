@@ -31,8 +31,20 @@
       <p class="section-content">{{task.remark || '暂无补充说明。'}}</p>
     </div>
 
+    <div class="detail-section contact-section" v-if="task.publisher_contact">
+      <div class="section-title">发布者联系方式</div>
+      <p class="section-content contact-value">{{ task.publisher_contact }}</p>
+      <p class="contact-tip">此信息仅对接单者可见，请勿随意传播。</p>
+    </div>
+
     <div class="detail-actions">
-      <button class="btn" @click="accept" v-if="logged">接单</button>
+      <button
+        v-if="logged"
+        class="btn"
+        :class="{ 'btn-disabled': !canAccept }"
+        :disabled="!canAccept"
+        @click="accept"
+      >{{ acceptButtonText }}</button>
       <div class="hint-text" v-else>请登录后接单，或返回帖子列表浏览更多任务。</div>
     </div>
   </div>
@@ -61,15 +73,26 @@ export default {
     statusText() {
       if (!this.task.status) return '未知状态'
       if (this.task.status === 'active') return '进行中'
+      if (this.task.status === 'accepted') return '已接单'
       if (this.task.status === 'completed') return '已完成'
       if (this.task.status === 'expired') return '已过期'
       return this.task.status
     },
     statusClass() {
       if (this.task.status === 'active') return 'status-active'
+      if (this.task.status === 'accepted') return 'status-accepted'
       if (this.task.status === 'completed') return 'status-completed'
       if (this.task.status === 'expired') return 'status-expired'
       return 'status-default'
+    },
+    canAccept() {
+      return this.task.status === 'active' && this.logged
+    },
+    acceptButtonText() {
+      if (this.task.status === 'accepted') return '已接单'
+      if (this.task.status === 'completed') return '已完成'
+      if (this.task.status === 'expired') return '已过期'
+      return '接单'
     },
     formattedReward() {
       if (!this.task) return ''
@@ -80,30 +103,31 @@ export default {
       return /^\d+(\.\d+)?$/.test(r) ? `¥${r}` : r
     },
     deadlineText() {
-      if (!this.task.deadline) return '未设置'
-      const date = new Date(this.task.deadline)
-      return isNaN(date) ? this.task.deadline : date.toLocaleString()
+      return this.task.deadline || '未设置'
     },
   },
   async mounted() {
-    const id = this.$route.params.id
-    const r = await axios.get('/api/tasks/' + id + '/')
-    this.task = r.data
+    await this.loadTask()
     this.logged = !!localStorage.getItem('access')
   },
   methods: {
+    async loadTask() {
+      const id = this.$route.params.id
+      const r = await axios.get('/api/tasks/' + id + '/')
+      this.task = r.data
+    },
     async accept() {
+      if (!this.canAccept) return
       try {
-        const token = localStorage.getItem('access')
-        await axios.post(
-          '/api/orders/',
-          { task: this.task.id },
-          { headers: { Authorization: 'Bearer ' + token } }
-        )
+        await axios.post('/api/orders/', { task: this.task.id })
         alert('接单成功')
-        this.$router.push('/')
+        await this.loadTask()
       } catch (e) {
-        alert('接单失败，请重试')
+        const msg = e.response?.data?.detail
+          || (e.response?.data && Object.values(e.response.data).flat().join(' '))
+          || '接单失败，请重试'
+        alert(msg)
+        await this.loadTask()
       }
     },
   },
@@ -153,6 +177,10 @@ export default {
   background: #fee2e2;
   color: #991b1b;
 }
+.status-accepted {
+  background: #fee2e2;
+  color: #dc2626;
+}
 .status-default {
   background: #e2e8f0;
   color: #334155;
@@ -192,6 +220,22 @@ export default {
   color: #334155;
   line-height: 1.8;
 }
+.contact-section {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.contact-value {
+  font-weight: 600;
+  color: #b91c1c;
+  font-size: 1.05rem;
+}
+.contact-tip {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: #991b1b;
+}
 .detail-actions {
   margin-top: 24px;
   display: flex;
@@ -202,5 +246,12 @@ export default {
 .hint-text {
   color: #64748b;
   font-size: 0.95rem;
+}
+.btn-disabled,
+.btn:disabled {
+  background: #cbd5e1 !important;
+  color: #64748b !important;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 </style>

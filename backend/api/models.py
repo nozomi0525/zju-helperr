@@ -15,16 +15,22 @@ class Task(models.Model):
     CATEGORY_CHOICES = [
         ('agency','agency'),('errand','errand'),('emergency','emergency'),('carpool','carpool'),('other','other')
     ]
-    STATUS_CHOICES = [('active','active'),('completed','completed'),('expired','expired')]
+    STATUS_CHOICES = [
+        ('active', 'active'),
+        ('accepted', 'accepted'),
+        ('completed', 'completed'),
+        ('expired', 'expired'),
+    ]
     publisher = models.ForeignKey('User', on_delete=models.CASCADE, related_name='published')
     category = models.CharField(max_length=32, choices=CATEGORY_CHOICES)
     is_paid = models.BooleanField(default=False)
     title = models.CharField(max_length=200)
     template_data = models.JSONField(default=dict)
     location = models.CharField(max_length=200, blank=True, null=True)
-    deadline = models.DateTimeField(blank=True, null=True)
-    reward = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    deadline = models.CharField(max_length=100, blank=True, null=True)
+    reward = models.CharField(max_length=100, blank=True, default='')
     remark = models.TextField(blank=True)
+    contact_info = models.CharField(max_length=200, blank=True, default='')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

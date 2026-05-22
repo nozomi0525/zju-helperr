@@ -21,7 +21,7 @@
       </div>
 
       <div class="login-form-row">
-        <input v-model="form.deadline" type="text" placeholder="时间" />
+        <input v-model="form.deadline" type="text" placeholder="时间（如：5月25日 18:00 / 明天下午）" />
       </div>
 
       <div class="login-form-row" style="display:flex;gap:12px;align-items:center">
@@ -41,6 +41,11 @@
       <div class="login-form-row">
         <input v-model="form.remark" placeholder="任务说明" />
       </div>
+
+      <div class="login-form-row">
+        <input v-model="form.contact_info" placeholder="联系方式（仅接单人可见，如手机号/微信）" />
+      </div>
+      <p class="contact-hint">为保护隐私，联系方式不会在列表中展示，仅成功接单的用户可在详情页查看。</p>
 
       <div class="login-actions">
         <button class="login-btn login-btn-ghost" @click="$router.back()">取消</button>
@@ -63,7 +68,8 @@ export default {
         deadline: '',
         payment: 'free',
         reward: '',
-        remark: ''
+        remark: '',
+        contact_info: ''
       }
     }
   },
@@ -76,6 +82,10 @@ export default {
         alert('请选择有偿并填写报酬描述')
         return
       }
+      if (!this.form.contact_info.trim()) {
+        alert('请填写联系方式（仅接单人可见）')
+        return
+      }
       try {
         const token = localStorage.getItem('access')
         if (!token) { alert('请先登录'); return }
@@ -86,16 +96,27 @@ export default {
           location: this.form.location,
           deadline: this.form.deadline,
           remark: this.form.remark,
+          contact_info: this.form.contact_info.trim(),
           is_paid: this.form.payment === 'paid'
         }
         if (this.form.payment === 'paid') payload.reward = this.form.reward
 
-        await axios.post('/api/tasks/', payload, { headers: { Authorization: 'Bearer ' + token } })
+        await axios.post('/api/tasks/', payload)
         alert('发布成功')
         this.$router.push('/')
       } catch (e) {
         console.error(e)
-        alert('发布失败，请稍后重试')
+        const data = e.response?.data
+        let msg = '发布失败，请稍后重试'
+        if (data) {
+          if (typeof data.detail === 'string') msg = data.detail
+          else if (typeof data === 'object') {
+            msg = Object.entries(data)
+              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`)
+              .join('\n')
+          }
+        }
+        alert(msg)
       }
     }
   }
@@ -173,5 +194,12 @@ export default {
 }
 
 #publish-page-wrapper .login-btn-ghost:hover { background:#667eea !important; color:#fff !important }
+
+#publish-page-wrapper .contact-hint {
+  margin: -6px 0 14px !important;
+  font-size: 12px !important;
+  color: #64748b !important;
+  line-height: 1.5 !important;
+}
 
 </style>

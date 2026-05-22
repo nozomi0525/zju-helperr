@@ -37,7 +37,13 @@
         </div>
         <div class="task-actions">
           <router-link :to="`/task/${t.id}`" class="btn ghost">查看详情</router-link>
-          <button class="btn" @click="accept(t)" v-if="logged">接单</button>
+          <button
+            v-if="logged"
+            class="btn"
+            :class="{ 'btn-disabled': !canAccept(t) }"
+            :disabled="!canAccept(t)"
+            @click="accept(t)"
+          >{{ acceptButtonText(t) }}</button>
         </div>
       </div>
       <div class="task-footer">
@@ -72,15 +78,26 @@ export default {
     statusText(status) {
       if (!status) return '未知状态'
       if (status === 'active') return '进行中'
+      if (status === 'accepted') return '已接单'
       if (status === 'completed') return '已完成'
       if (status === 'expired') return '已过期'
       return status
     },
     statusClass(status) {
       if (status === 'active') return 'status-active'
+      if (status === 'accepted') return 'status-accepted'
       if (status === 'completed') return 'status-completed'
       if (status === 'expired') return 'status-expired'
       return 'status-default'
+    },
+    canAccept(t) {
+      return t.status === 'active'
+    },
+    acceptButtonText(t) {
+      if (t.status === 'accepted') return '已接单'
+      if (t.status === 'completed') return '已完成'
+      if (t.status === 'expired') return '已过期'
+      return '接单'
     },
     async load() {
       // build query params for category and paid filter
@@ -102,16 +119,21 @@ export default {
       if (this.paidFilter === 'free') this.tasks = this.tasks.filter(t => !t.is_paid)
     },
     async accept(t) {
+      if (!this.canAccept(t)) return
       try {
-        const token = localStorage.getItem('access')
-        if (!token) {
+        if (!localStorage.getItem('access')) {
           alert('请先登录')
           return
         }
-        await axios.post('/api/orders/', { task: t.id }, { headers: { Authorization: 'Bearer ' + token } })
+        await axios.post('/api/orders/', { task: t.id })
         alert('接单成功')
+        await this.load()
       } catch (e) {
-        alert('接单失败，请重试')
+        const msg = e.response?.data?.detail
+          || (e.response?.data && Object.values(e.response.data).flat().join(' '))
+          || '接单失败，请重试'
+        alert(msg)
+        await this.load()
       }
     }
   },
@@ -217,6 +239,10 @@ export default {
   background: #fee2e2;
   color: #991b1b;
 }
+.status-accepted {
+  background: #fee2e2;
+  color: #dc2626;
+}
 .status-default {
   background: #e2e8f0;
   color: #334155;
@@ -258,6 +284,13 @@ export default {
 .tag {
   background: #f1f5f9;
   color: #475569;
+}
+.btn-disabled,
+.btn:disabled {
+  background: #cbd5e1 !important;
+  color: #64748b !important;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 .empty-state {
   text-align: center;

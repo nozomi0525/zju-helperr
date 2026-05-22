@@ -14,6 +14,43 @@ axios.interceptors.request.use((config) => {
   }
   return config
 })
+
+let refreshing = null
+axios.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const original = err.config
+    if (err.response?.status !== 401 || original._retry) {
+      return Promise.reject(err)
+    }
+    const refresh = localStorage.getItem('refresh')
+    if (!refresh) {
+      return Promise.reject(err)
+    }
+    original._retry = true
+    try {
+      if (!refreshing) {
+        refreshing = axios.post('/api/token/refresh/', { refresh }).then((r) => {
+          localStorage.setItem('access', r.data.access)
+          if (r.data.refresh) {
+            localStorage.setItem('refresh', r.data.refresh)
+          }
+          return r.data.access
+        }).finally(() => { refreshing = null })
+      }
+      const access = await refreshing
+      original.headers.Authorization = `Bearer ${access}`
+      return axios(original)
+    } catch {
+      localStorage.removeItem('access')
+      localStorage.removeItem('refresh')
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+      return Promise.reject(err)
+    }
+  }
+)
 import TaskList from './pages/TaskList.vue'
 import Publish from './pages/Publish.vue'
 import Login from './pages/Login.vue'

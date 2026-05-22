@@ -2,9 +2,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
-from rest_framework import status
-from rest_framework.response import Response
-from django.db import IntegrityError
+from rest_framework.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+from django.db.models import F
 from .models import User, Task, Order, Review, Message, Report, Blacklist
 from .serializers import UserSerializer, TaskSerializer, OrderSerializer, ReviewSerializer, MessageSerializer, ReportSerializer, BlacklistSerializer
 from django.db.models import Avg
@@ -45,16 +45,32 @@ class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                self.perform_create(serializer)
+        except ValidationError:
+            raise
+        except Exception as e:
+            raise ValidationError({'detail': str(e)})
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_create(self, serializer):
         user = self.request.user
         task = serializer.validated_data.get('task')
-        # check task status and existing active orders
+        if task.publisher_id == user.id:
+            raise ValidationError('不能接自己发布的任务')
         if task.status != 'active':
-            raise Exception('task not active')
-        active_orders = task.orders.filter(status='pending')
-        if active_orders.exists():
-            raise Exception('task already has active order')
+            raise ValidationError('该任务当前不可接单')
+        if task.orders.filter(status='pending').exists():
+            raise ValidationError('该任务已被接单')
         serializer.save(acceptor=user)
+        task.status = 'accepted'
+        task.save(update_fields=['status', 'updated_at'])
+        User.objects.filter(pk=user.pk).update(accept_count=F('accept_count') + 1)
 
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
