@@ -14,7 +14,20 @@
     <div class="detail-grid">
       <div class="detail-block">
         <div class="detail-label">发布者</div>
-        <div class="detail-value">{{task.publisher?.username || '匿名'}}</div>
+        <div class="detail-value">
+          <router-link
+            v-if="task.publisher?.id"
+            :to="`/user/${task.publisher.id}`"
+            class="publisher-link"
+          >
+            {{ task.publisher.username || '匿名' }}
+          </router-link>
+          <span v-else>{{ task.publisher?.username || '匿名' }}</span>
+        </div>
+      </div>
+      <div class="detail-block">
+        <div class="detail-label">信用分</div>
+        <div class="detail-value">{{ publisherCreditText }}</div>
       </div>
       <div class="detail-block">
         <div class="detail-label">奖励</div>
@@ -159,6 +172,12 @@ export default {
       const r = String(this.task.reward).trim()
       return /^\d+(\.\d+)?$/.test(r) ? `¥${r}` : r
     },
+    publisherCreditText() {
+      const credit = this.task.publisher?.credit_score
+      if (credit == null || credit === '') return '未公开'
+      const num = Number(credit)
+      return Number.isFinite(num) ? num.toFixed(1) : String(credit)
+    },
     deadlineText() {
       return this.task.deadline || '未设置'
     },
@@ -299,6 +318,13 @@ export default {
   font-size: 1rem;
   color: #0f172a;
   font-weight: 600;
+}
+.publisher-link {
+  color: #2563eb;
+  text-decoration: none;
+}
+.publisher-link:hover {
+  text-decoration: underline;
 }
 .detail-section {
   margin-top: 22px;

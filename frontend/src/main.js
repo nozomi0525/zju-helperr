@@ -57,6 +57,7 @@ import Login from './pages/Login.vue'
 import Register from './pages/Register.vue'
 import TaskDetail from './pages/TaskDetail.vue'
 import Profile from './pages/Profile.vue'
+import UserProfile from './pages/UserProfile.vue'
 import './styles.css'
 
 const routes = [
@@ -66,6 +67,7 @@ const routes = [
   { path: '/register', component: Register },
   { path: '/task/:id', component: TaskDetail },
   { path: '/profile', component: Profile },
+  { path: '/user/:id', component: UserProfile },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })
