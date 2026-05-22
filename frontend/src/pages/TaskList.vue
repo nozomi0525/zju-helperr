@@ -86,13 +86,18 @@ export default {
       // build query params for category and paid filter
       const params = new URLSearchParams()
       if (this.category) params.append('category', this.category)
-      // backend may or may not support 'is_paid' param; always apply client-side filtering as fallback
+      // include is_paid param when selected to let backend filter if supported
       if (this.paidFilter === 'paid') params.append('is_paid', 'true')
       if (this.paidFilter === 'free') params.append('is_paid', 'false')
-      let url = '/api/tasks/' + (params.toString() ? ('?' + params.toString()) : '')
+
+      const url = '/api/tasks/' + (params.toString() ? ('?' + params.toString()) : '')
       const r = await axios.get(url)
       this.tasks = r.data
-      // client-side filtering to ensure results respect paidFilter even if backend ignores param
+
+      // Apply client-side filters to guarantee correct results even if backend ignores params
+      if (this.category) {
+        this.tasks = this.tasks.filter(t => t.category === this.category)
+      }
       if (this.paidFilter === 'paid') this.tasks = this.tasks.filter(t => !!t.is_paid)
       if (this.paidFilter === 'free') this.tasks = this.tasks.filter(t => !t.is_paid)
     },
