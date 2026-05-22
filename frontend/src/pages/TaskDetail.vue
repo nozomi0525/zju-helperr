@@ -4,7 +4,7 @@
       <div>
         <h3>{{task.title}}</h3>
         <div class="detail-meta">
-          <span>分类：{{task.category || '未知'}}</span>
+          <span>分类：{{categoryText}}</span>
           <span>位置：{{task.location || '未填写'}}</span>
         </div>
       </div>
@@ -48,6 +48,16 @@ export default {
     }
   },
   computed: {
+    categoryText() {
+      const map = {
+        carpool: '拼车',
+        errand: '跑腿',
+        agency: '代办',
+        emergency: '特需',
+      }
+      if (!this.task || !this.task.category) return '未知'
+      return map[this.task.category] || this.task.category
+    },
     statusText() {
       if (!this.task.status) return '未知状态'
       if (this.task.status === 'active') return '进行中'
