@@ -40,6 +40,26 @@ class UserViewSet(viewsets.ModelViewSet):
         ]
         return Response(data)
 
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def reviews(self, request, pk=None):
+        user = self.get_object()
+        reviews = (
+            Review.objects.filter(target=user)
+            .select_related('reviewer', 'order', 'order__task')
+            .order_by('-created_at')[:20]
+        )
+        data = [
+            {
+                'rating': r.rating,
+                'comment': r.comment,
+                'reviewer_username': r.reviewer.username,
+                'task_title': r.order.task.title,
+                'created_at': r.created_at,
+            }
+            for r in reviews
+        ]
+        return Response(data)
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():

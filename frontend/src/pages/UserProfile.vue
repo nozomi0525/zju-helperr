@@ -23,6 +23,18 @@
             <div class="profile-stat-label">评价</div>
           </div>
         </div>
+        <div class="profile-reviews">
+          <div class="profile-reviews-title">用户评价</div>
+          <div v-if="reviews.length === 0" class="profile-reviews-empty">暂无评价</div>
+          <div v-for="review in reviews" :key="review.created_at + review.reviewer_username" class="profile-review-item">
+            <div class="profile-review-top">
+              <span class="profile-review-user">{{ review.reviewer_username }}</span>
+              <span class="profile-review-stars">{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</span>
+            </div>
+            <div class="profile-review-task">任务：{{ review.task_title }}</div>
+            <p v-if="review.comment" class="profile-review-comment">{{ review.comment }}</p>
+          </div>
+        </div>
         <div class="profile-actions">
           <button class="btn" @click="$router.push('/')">返回帖子</button>
         </div>
@@ -37,6 +49,7 @@ export default {
   data() {
     return {
       user: null,
+      reviews: [],
       loading: false,
       error: '',
     }
@@ -44,14 +57,22 @@ export default {
   async mounted() {
     await this.fetchUser()
   },
+  watch: {
+    '$route.params.id': 'fetchUser'
+  },
   methods: {
     async fetchUser() {
       this.loading = true
       this.error = ''
+      this.reviews = []
       const id = this.$route.params.id
       try {
-        const r = await axios.get(`/api/users/${id}/`)
-        this.user = r.data
+        const [userRes, reviewsRes] = await Promise.all([
+          axios.get(`/api/users/${id}/`),
+          axios.get(`/api/users/${id}/reviews/`),
+        ])
+        this.user = userRes.data
+        this.reviews = reviewsRes.data
       } catch (e) {
         this.error = '用户信息加载失败，请重试'
       } finally {
@@ -130,5 +151,48 @@ export default {
 .profile-actions {
   display: flex;
   justify-content: center;
+}
+.profile-reviews {
+  margin-top: 24px;
+}
+.profile-reviews-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 14px;
+}
+.profile-reviews-empty {
+  color: #64748b;
+  font-size: 0.95rem;
+}
+.profile-review-item {
+  background: #f8fafc;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.profile-review-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.profile-review-user {
+  font-weight: 600;
+  color: #0f172a;
+}
+.profile-review-stars {
+  color: #f59e0b;
+}
+.profile-review-task {
+  font-size: 0.92rem;
+  color: #475569;
+  margin-bottom: 8px;
+}
+.profile-review-comment {
+  margin: 0;
+  color: #334155;
+  line-height: 1.6;
 }
 </style>
