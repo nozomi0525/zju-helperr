@@ -1,14 +1,21 @@
 from rest_framework import serializers
 from .models import User, Task, Order, Review, Message, Report, Blacklist
+from .credit import credit_level_label
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
     publish_count = serializers.SerializerMethodField()
     accept_count = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+    credit_level = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id','username','password','first_name','last_name','phone','wechat','avatar','credit_score','publish_count','accept_count']
+        fields = [
+            'id', 'username', 'password', 'first_name', 'last_name',
+            'phone', 'wechat', 'avatar', 'credit_score', 'credit_level',
+            'publish_count', 'accept_count', 'review_count',
+        ]
 
     def get_publish_count(self, obj):
         return obj.published.count()
@@ -16,24 +23,21 @@ class UserSerializer(serializers.ModelSerializer):
     def get_accept_count(self, obj):
         return obj.orders.count()
 
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user = User(**validated_data)
-        if password:
-            user.set_password(password)
-        else:
-            user.set_unusable_password()
-        user.save()
-        return user
+    def get_review_count(self, obj):
+        return obj.received_reviews.count()
+
+    def get_credit_level(self, obj):
+        return credit_level_label(obj.credit_score)
 
 class TaskSerializer(serializers.ModelSerializer):
     publisher = UserSerializer(read_only=True)
     publisher_contact = serializers.SerializerMethodField()
+    order_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = '__all__'
-        read_only_fields = ('status', 'publisher', 'created_at', 'updated_at', 'publisher_contact')
+        read_only_fields = ('status', 'publisher', 'created_at', 'updated_at', 'publisher_contact', 'order_info')
         extra_kwargs = {
             'contact_info': {'write_only': True},
         }
@@ -42,10 +46,52 @@ class TaskSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return None
-        is_acceptor = obj.orders.filter(status='pending', acceptor=request.user).exists()
+        is_acceptor = obj.orders.filter(
+            acceptor=request.user, status__in=['pending', 'completed']
+        ).exists()
         if is_acceptor:
             return obj.contact_info or None
         return None
+
+    def get_order_info(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return None
+        order = (
+            obj.orders.filter(status__in=['pending', 'completed'])
+            .select_related('acceptor')
+            .order_by('-created_at')
+            .first()
+        )
+        if not order:
+            return None
+        user = request.user
+        is_publisher = obj.publisher_id == user.id
+        is_acceptor = order.acceptor_id == user.id
+        if not (is_publisher or is_acceptor):
+            return None
+
+        my_review = order.reviews.filter(reviewer=user).first()
+        other_user = order.acceptor if is_publisher else obj.publisher
+
+        return {
+            'order_id': order.id,
+            'status': order.status,
+            'publisher_confirmed': order.publisher_confirmed,
+            'acceptor_confirmed': order.acceptor_confirmed,
+            'acceptor_username': order.acceptor.username,
+            'my_role': 'publisher' if is_publisher else 'acceptor',
+            'can_confirm': order.status == 'pending' and (
+                (is_publisher and not order.publisher_confirmed)
+                or (is_acceptor and not order.acceptor_confirmed)
+            ),
+            'can_review': order.status == 'completed' and my_review is None,
+            'my_review': {
+                'rating': my_review.rating,
+                'comment': my_review.comment,
+            } if my_review else None,
+            'review_target_username': other_user.username,
+        }
 
     def validate(self, attrs):
         if self.instance is None and not (attrs.get('contact_info') or '').strip():
@@ -55,15 +101,27 @@ class TaskSerializer(serializers.ModelSerializer):
         return attrs
 
 class OrderSerializer(serializers.ModelSerializer):
+    task_title = serializers.CharField(source='task.title', read_only=True)
+
     class Meta:
         model = Order
         fields = '__all__'
-        read_only_fields = ('status', 'acceptor', 'publisher_confirmed', 'acceptor_confirmed', 'created_at')
+        read_only_fields = (
+            'status', 'acceptor', 'publisher_confirmed',
+            'acceptor_confirmed', 'created_at', 'task_title',
+        )
 
 class ReviewSerializer(serializers.ModelSerializer):
+    reviewer_username = serializers.CharField(source='reviewer.username', read_only=True)
+    target_username = serializers.CharField(source='target.username', read_only=True)
+
     class Meta:
         model = Review
-        fields = '__all__'
+        fields = [
+            'id', 'order', 'reviewer', 'target', 'rating', 'comment',
+            'role_type', 'created_at', 'reviewer_username', 'target_username',
+        ]
+        read_only_fields = ('reviewer', 'target', 'role_type', 'created_at', 'reviewer_username', 'target_username')
 
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:

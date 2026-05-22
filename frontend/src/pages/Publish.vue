@@ -21,7 +21,7 @@
       </div>
 
       <div class="login-form-row">
-        <input v-model="form.deadline" type="text" placeholder="时间（如：5月25日 18:00 / 明天下午）" />
+        <input v-model="form.deadline" type="text" placeholder="时间" />
       </div>
 
       <div class="login-form-row" style="display:flex;gap:12px;align-items:center">
