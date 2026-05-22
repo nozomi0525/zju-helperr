@@ -19,7 +19,7 @@
           <option value="paid">有偿</option>
           <option value="free">无偿</option>
         </select>
-        <button class="btn primary" @click="load">刷新</button>
+        <button class="btn primary" @click="load" title="筛选当前条件">筛选</button>
       </div>
     </div>
 
