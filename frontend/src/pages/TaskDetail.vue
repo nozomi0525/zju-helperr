@@ -21,7 +21,7 @@
         <div class="detail-value">{{formattedReward}}</div>
       </div>
       <div class="detail-block">
-        <div class="detail-label">时间</div>
+        <div class="detail-label">截止时间</div>
         <div class="detail-value">{{deadlineText}}</div>
       </div>
     </div>
