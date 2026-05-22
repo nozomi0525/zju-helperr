@@ -17,7 +17,7 @@
       </div>
 
       <div class="login-form-row">
-        <input v-model="form.location" placeholder="位置（例如：浙江大学华家池）" />
+        <input v-model="form.location" placeholder="位置（单个位置/往返位置）" />
       </div>
 
       <div class="login-form-row">
@@ -35,7 +35,7 @@
       </div>
 
       <div class="login-form-row" v-if="form.payment==='paid'">
-        <input v-model="form.reward" placeholder="报酬描述（例如：5元 / 赠品 / 面议）" />
+        <input v-model="form.reward" placeholder="报酬描述" />
       </div>
 
       <div class="login-form-row">
