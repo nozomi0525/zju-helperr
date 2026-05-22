@@ -42,7 +42,7 @@
           </div>
           <div class="task-meta-extra">
             <span class="meta-chip">{{ paymentText(t.is_paid) }}</span>
-            <span class="meta-chip">发布时间：{{ formatDate(t.created_at) }}</span>
+            <span class="meta-chip">时间：{{ formatDate(t.deadline || t.created_at) }}</span>
           </div>
           <p v-if="t.remark" class="task-desc">{{ t.remark }}</p>
         </div>
