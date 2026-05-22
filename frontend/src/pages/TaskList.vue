@@ -19,7 +19,14 @@
           <option value="paid">有偿</option>
           <option value="free">无偿</option>
         </select>
+        <select v-model="statusFilter">
+          <option value="">全部状态</option>
+          <option value="active">进行中</option>
+          <option value="accepted">已接单</option>
+          <option value="completed">已完成</option>
+        </select>
         <button class="btn primary" @click="load" title="筛选当前条件">筛选</button>
+        <button class="btn" @click="refreshAll" title="清空筛选并刷新任务列表">刷新</button>
       </div>
     </div>
 
@@ -32,6 +39,10 @@
           <div class="task-info">
             {{ categoryText(t.category) }} · {{ t.location || '未知地点' }} ·
             <span :class="['status-chip', statusClass(t.status)]">{{ statusText(t.status) }}</span>
+          </div>
+          <div class="task-meta-extra">
+            <span class="meta-chip">{{ paymentText(t.is_paid) }}</span>
+            <span class="meta-chip">发布时间：{{ formatDate(t.created_at) }}</span>
           </div>
           <p v-if="t.remark" class="task-desc">{{ t.remark }}</p>
         </div>
@@ -62,6 +73,7 @@ export default {
       tasks: [],
       category: '',
       paidFilter: '',
+      statusFilter: '',
       logged: false
     }
   },
@@ -103,6 +115,7 @@ export default {
       // build query params for category and paid filter
       const params = new URLSearchParams()
       if (this.category) params.append('category', this.category)
+      if (this.statusFilter) params.append('status', this.statusFilter)
       // include is_paid param when selected to let backend filter if supported
       if (this.paidFilter === 'paid') params.append('is_paid', 'true')
       if (this.paidFilter === 'free') params.append('is_paid', 'false')
@@ -115,8 +128,33 @@ export default {
       if (this.category) {
         this.tasks = this.tasks.filter(t => t.category === this.category)
       }
+      if (this.statusFilter) {
+        this.tasks = this.tasks.filter(t => t.status === this.statusFilter)
+      }
       if (this.paidFilter === 'paid') this.tasks = this.tasks.filter(t => !!t.is_paid)
       if (this.paidFilter === 'free') this.tasks = this.tasks.filter(t => !t.is_paid)
+    },
+    async refreshAll() {
+      this.category = ''
+      this.paidFilter = ''
+      this.statusFilter = ''
+      const r = await axios.get('/api/tasks/')
+      this.tasks = r.data
+    },
+    paymentText(isPaid) {
+      return isPaid ? '有偿' : '无偿'
+    },
+    formatDate(value) {
+      if (!value) return '未知时间'
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return value
+      return date.toLocaleString([], {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     },
     async accept(t) {
       if (!this.canAccept(t)) return
@@ -220,6 +258,22 @@ export default {
   line-height: 1.7;
   max-width: 720px;
 }
+.task-meta-extra {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
 .status-chip {
   padding: 5px 11px;
   border-radius: 999px;
@@ -255,6 +309,10 @@ export default {
 }
 .task-actions .btn {
   min-width: 84px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 .task-actions .ghost {
   background: transparent;
