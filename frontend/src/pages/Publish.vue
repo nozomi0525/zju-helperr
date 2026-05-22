@@ -21,7 +21,7 @@
       </div>
 
       <div class="login-form-row">
-        <input v-model="form.deadline" type="datetime-local" />
+        <input v-model="form.deadline" type="text" placeholder="时间" />
       </div>
 
       <div class="login-form-row" style="display:flex;gap:12px;align-items:center">
@@ -70,7 +70,8 @@ export default {
   methods: {
     async publish() {
       if (!this.form.title.trim()) { alert('请填写标题'); return }
-      if (!this.form.deadline) { alert('请填写截止时间'); return }
+      if (!this.form.location.trim()) { alert('请填写地点'); return }
+      if (!this.form.deadline) { alert('请填写时间'); return }
       if (this.form.payment === 'paid' && !this.form.reward.trim()) {
         alert('请选择有偿并填写报酬描述')
         return
