@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import Case, When, Value, IntegerField
 from .models import User, Task, Order, Review, Message, Report, Blacklist
 from .serializers import UserSerializer, TaskSerializer, OrderSerializer, ReviewSerializer, MessageSerializer, ReportSerializer, BlacklistSerializer
 from .credit import recalculate_credit_score
@@ -75,6 +75,26 @@ class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all().order_by('-created_at')
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        qs = Task.objects.all()
+        user = self.request.user
+        if user.is_authenticated:
+            qs = qs.annotate(
+                is_my_accepted=Case(
+                    When(
+                        orders__acceptor=user,
+                        orders__status='pending',
+                        then=Value(1),
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            ).distinct().order_by('-is_my_accepted', '-created_at')
+        else:
+            qs = qs.order_by('-created_at')
+        return qs
+
     def perform_create(self, serializer):
         user = self.request.user
         serializer.save(publisher=user)
@@ -109,7 +129,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer.save(acceptor=user)
         task.status = 'accepted'
         task.save(update_fields=['status', 'updated_at'])
-        User.objects.filter(pk=user.pk).update(accept_count=F('accept_count') + 1)
 
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):

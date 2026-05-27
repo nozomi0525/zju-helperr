@@ -21,7 +21,16 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.published.count()
 
     def get_accept_count(self, obj):
-        return obj.orders.count()
+        # 从订单表统计，不使用 User.accept_count 缓存字段
+        return obj.orders.exclude(status='cancelled').count()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['publish_count'] = self.get_publish_count(instance)
+        data['accept_count'] = self.get_accept_count(instance)
+        data['review_count'] = self.get_review_count(instance)
+        data['credit_level'] = self.get_credit_level(instance)
+        return data
 
     def get_review_count(self, obj):
         return obj.received_reviews.count()
@@ -33,14 +42,30 @@ class TaskSerializer(serializers.ModelSerializer):
     publisher = UserSerializer(read_only=True)
     publisher_contact = serializers.SerializerMethodField()
     order_info = serializers.SerializerMethodField()
+    is_my_accepted = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = '__all__'
-        read_only_fields = ('status', 'publisher', 'created_at', 'updated_at', 'publisher_contact', 'order_info')
+        read_only_fields = (
+            'status', 'publisher', 'created_at', 'updated_at',
+            'publisher_contact', 'order_info', 'is_my_accepted',
+        )
         extra_kwargs = {
             'contact_info': {'write_only': True},
         }
+
+    def get_is_my_accepted(self, obj):
+        if hasattr(obj, 'is_my_accepted'):
+            return bool(obj.is_my_accepted)
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        # 仅「已接单未完成」置顶，双方确认完成后不再置顶
+        return obj.orders.filter(
+            acceptor=request.user,
+            status='pending',
+        ).exists()
 
     def get_publisher_contact(self, obj):
         request = self.context.get('request')
