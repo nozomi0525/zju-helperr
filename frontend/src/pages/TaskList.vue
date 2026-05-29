@@ -50,9 +50,8 @@
             <div class="task-title">{{ t.title }}</div>
             <span v-if="t.is_my_accepted" class="my-order-badge">我的接单</span>
           </div>
-          <div class="task-info">
-            {{ categoryText(t.category) }} · {{ t.location || '未知地点' }} ·
-            <span :class="['status-chip', statusClass(t.status)]">{{ statusText(t.status) }}</span>
+          <div class="task-info task-location">
+            <span class="location-label">地址：</span>{{ t.location || '未知地点' }}
           </div>
           <div class="task-meta-extra">
             <span class="meta-chip">{{ paymentText(t.is_paid) }}</span>
@@ -139,8 +138,16 @@ export default {
         }
       }
     },
-    toggleMineFilter() {
+    async toggleMineFilter() {
+      // if enabling "mine" filter but not logged in, prompt to login
+      if (!this.showMineOnly && !this.logged) {
+        alert('请先登录以查看我的发布')
+        return
+      }
       this.showMineOnly = !this.showMineOnly
+      if (this.showMineOnly && !this.me) {
+        await this.fetchMe()
+      }
       this.load()
     },
     async load() {
@@ -154,6 +161,10 @@ export default {
 
       const url = '/api/tasks/' + (params.toString() ? ('?' + params.toString()) : '')
       const r = await axios.get(url)
+      // ensure we have current user info when mine-only filter is active
+      if (this.showMineOnly && !this.me) {
+        await this.fetchMe()
+      }
       this.tasks = this.applyFiltersAndSort(r.data)
     },
     async refreshAll() {
@@ -173,6 +184,9 @@ export default {
       }
       if (this.paidFilter === 'paid') tasks = tasks.filter(t => !!t.is_paid)
       if (this.paidFilter === 'free') tasks = tasks.filter(t => !t.is_paid)
+      if (this.showMineOnly && this.me?.id) {
+        tasks = tasks.filter(t => t.publisher?.id === this.me.id)
+      }
       return this.sortMyAcceptedFirst(tasks)
     },
     sortMyAcceptedFirst(tasks) {
@@ -220,7 +234,7 @@ export default {
   },
   mounted() {
     this.logged = !!localStorage.getItem('access')
-    this.load()
+    this.fetchMe().then(() => this.load())
   }
 }
 </script>
