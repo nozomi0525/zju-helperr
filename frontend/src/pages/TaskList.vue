@@ -38,12 +38,21 @@
 
     <div class="card empty-state" v-if="tasks.length === 0">暂无任务，稍后再试或点击刷新</div>
 
-    <div class="card task-card" v-for="t in tasks" :key="t.id">
+    <div
+      class="card task-card"
+      v-for="t in tasks"
+      :key="t.id"
+      :class="{ 'task-card-mine': t.is_my_accepted }"
+    >
       <div class="task-item">
         <div class="task-meta">
-          <div class="task-title">{{ t.title }}</div>
-          <div class="task-info task-location">
-            <span class="location-label">地址：</span>{{ t.location || '未知地点' }}
+          <div class="task-title-row">
+            <div class="task-title">{{ t.title }}</div>
+            <span v-if="t.is_my_accepted" class="my-order-badge">我的接单</span>
+          </div>
+          <div class="task-info">
+            {{ categoryText(t.category) }} · {{ t.location || '未知地点' }} ·
+            <span :class="['status-chip', statusClass(t.status)]">{{ statusText(t.status) }}</span>
           </div>
           <div class="task-meta-extra">
             <span class="meta-chip">{{ paymentText(t.is_paid) }}</span>
@@ -145,30 +154,35 @@ export default {
 
       const url = '/api/tasks/' + (params.toString() ? ('?' + params.toString()) : '')
       const r = await axios.get(url)
-      this.tasks = r.data
-
-      // Apply client-side filters to guarantee correct results even if backend ignores params
-      if (this.category) {
-        this.tasks = this.tasks.filter(t => t.category === this.category)
-      }
-      if (this.statusFilter) {
-        this.tasks = this.tasks.filter(t => t.status === this.statusFilter)
-      }
-      if (this.paidFilter === 'paid') this.tasks = this.tasks.filter(t => !!t.is_paid)
-      if (this.paidFilter === 'free') this.tasks = this.tasks.filter(t => !t.is_paid)
-      if (this.showMineOnly && this.me?.id) {
-        this.tasks = this.tasks.filter(t => t.publisher?.id === this.me.id)
-      }
+      this.tasks = this.applyFiltersAndSort(r.data)
     },
     async refreshAll() {
       this.category = ''
       this.paidFilter = ''
       this.statusFilter = ''
       const r = await axios.get('/api/tasks/')
-      this.tasks = r.data
-      if (this.showMineOnly && this.me?.id) {
-        this.tasks = this.tasks.filter(t => t.publisher?.id === this.me.id)
+      this.tasks = this.applyFiltersAndSort(r.data)
+    },
+    applyFiltersAndSort(list) {
+      let tasks = list
+      if (this.category) {
+        tasks = tasks.filter(t => t.category === this.category)
       }
+      if (this.statusFilter) {
+        tasks = tasks.filter(t => t.status === this.statusFilter)
+      }
+      if (this.paidFilter === 'paid') tasks = tasks.filter(t => !!t.is_paid)
+      if (this.paidFilter === 'free') tasks = tasks.filter(t => !t.is_paid)
+      return this.sortMyAcceptedFirst(tasks)
+    },
+    sortMyAcceptedFirst(tasks) {
+      if (!this.logged) return tasks
+      return [...tasks].sort((a, b) => {
+        const mineA = a.is_my_accepted ? 1 : 0
+        const mineB = b.is_my_accepted ? 1 : 0
+        if (mineB !== mineA) return mineB - mineA
+        return new Date(b.created_at) - new Date(a.created_at)
+      })
     },
     paymentText(isPaid) {
       return isPaid ? '有偿' : '无偿'
@@ -205,9 +219,8 @@ export default {
     }
   },
   mounted() {
-    this.fetchMe()
-    this.load()
     this.logged = !!localStorage.getItem('access')
+    this.load()
   }
 }
 </script>
@@ -273,11 +286,30 @@ export default {
 .task-meta {
   min-width: 0;
 }
+.task-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .task-title {
   font-weight: 700;
   color: #0f172a;
   font-size: 1.06rem;
   line-height: 1.5;
+}
+.my-order-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.task-card-mine {
+  border-color: #fcd34d;
+  box-shadow: 0 8px 28px rgba(245, 158, 11, 0.12);
 }
 .task-info {
   margin-top: 8px;
