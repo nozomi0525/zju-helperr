@@ -26,6 +26,12 @@
           <option value="completed">已完成</option>
         </select>
         <button class="btn primary" @click="load" title="筛选当前条件">筛选</button>
+        <button
+          class="btn"
+          :class="{ 'btn-mine-active': showMineOnly }"
+          @click="toggleMineFilter"
+          title="只显示我发布的帖子"
+        >我的发布</button>
         <button class="btn" @click="refreshAll" title="清空筛选并刷新任务列表">刷新</button>
       </div>
     </div>
@@ -36,9 +42,8 @@
       <div class="task-item">
         <div class="task-meta">
           <div class="task-title">{{ t.title }}</div>
-          <div class="task-info">
-            {{ categoryText(t.category) }} · {{ t.location || '未知地点' }} ·
-            <span :class="['status-chip', statusClass(t.status)]">{{ statusText(t.status) }}</span>
+          <div class="task-info task-location">
+            <span class="location-label">地址：</span>{{ t.location || '未知地点' }}
           </div>
           <div class="task-meta-extra">
             <span class="meta-chip">{{ paymentText(t.is_paid) }}</span>
@@ -74,6 +79,8 @@ export default {
       category: '',
       paidFilter: '',
       statusFilter: '',
+      showMineOnly: false,
+      me: null,
       logged: false
     }
   },
@@ -111,6 +118,22 @@ export default {
       if (t.status === 'expired') return '已过期'
       return '接单'
     },
+    async fetchMe() {
+      try {
+        const r = await axios.get('/api/users/me/')
+        this.me = r.data
+      } catch (e) {
+        this.me = null
+        if (e.response?.status === 401) {
+          localStorage.removeItem('access')
+          localStorage.removeItem('refresh')
+        }
+      }
+    },
+    toggleMineFilter() {
+      this.showMineOnly = !this.showMineOnly
+      this.load()
+    },
     async load() {
       // build query params for category and paid filter
       const params = new URLSearchParams()
@@ -133,6 +156,9 @@ export default {
       }
       if (this.paidFilter === 'paid') this.tasks = this.tasks.filter(t => !!t.is_paid)
       if (this.paidFilter === 'free') this.tasks = this.tasks.filter(t => !t.is_paid)
+      if (this.showMineOnly && this.me?.id) {
+        this.tasks = this.tasks.filter(t => t.publisher?.id === this.me.id)
+      }
     },
     async refreshAll() {
       this.category = ''
@@ -140,6 +166,9 @@ export default {
       this.statusFilter = ''
       const r = await axios.get('/api/tasks/')
       this.tasks = r.data
+      if (this.showMineOnly && this.me?.id) {
+        this.tasks = this.tasks.filter(t => t.publisher?.id === this.me.id)
+      }
     },
     paymentText(isPaid) {
       return isPaid ? '有偿' : '无偿'
@@ -176,6 +205,7 @@ export default {
     }
   },
   mounted() {
+    this.fetchMe()
     this.load()
     this.logged = !!localStorage.getItem('access')
   }
@@ -221,6 +251,11 @@ export default {
   background: #4338ca;
   color: white;
 }
+.btn-mine-active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12);
+}
 .task-card {
   border: 1px solid #e2e8f0;
   border-radius: 18px;
@@ -246,11 +281,21 @@ export default {
 }
 .task-info {
   margin-top: 8px;
-  color: #64748b;
-  font-size: 0.94rem;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.task-location {
+  font-size: 1.04rem;
+  color: #0f172a;
+  font-weight: 700;
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+}
+.location-label {
+  color: #4338ca;
 }
 .task-desc {
   margin: 12px 0 0;
