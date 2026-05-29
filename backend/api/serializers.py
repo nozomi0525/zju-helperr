@@ -38,6 +38,16 @@ class UserSerializer(serializers.ModelSerializer):
     def get_credit_level(self, obj):
         return credit_level_label(obj.credit_score)
 
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = User(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+        user.save()
+        return user
+
 class TaskSerializer(serializers.ModelSerializer):
     publisher = UserSerializer(read_only=True)
     publisher_contact = serializers.SerializerMethodField()
