@@ -9,9 +9,12 @@
         <input type="password" v-model="password" placeholder="密码" />
       </div>
       <div class="login-actions">
-        <button class="login-btn" @click="login">登录</button>
-        <button class="login-btn login-btn-ghost" @click="$router.push('/register')">注册</button>
+        <button type="button" class="login-btn" @click="login">登录</button>
       </div>
+      <p class="login-footer">
+        没有账号？
+        <router-link to="/register" class="login-register-link">注册</router-link>
+      </p>
     </div>
   </div>
 </template>
@@ -91,15 +94,13 @@ export default {
 }
 
 #login-page-wrapper .login-actions {
-  display: flex !important;
-  gap: 12px !important;
-  align-items: center !important;
   margin-top: 10px !important;
 }
 
 #login-page-wrapper .login-btn {
-  flex: 1 !important;
-  padding: 12px 20px !important;
+  display: block !important;
+  width: 100% !important;
+  padding: 14px 20px !important;
   font-size: 16px !important;
   font-weight: 500 !important;
   border: none !important;
@@ -120,16 +121,21 @@ export default {
   transform: translateY(0) !important;
 }
 
-#login-page-wrapper .login-btn-ghost {
-  background: transparent !important;
-  color: #667eea !important;
-  border: 2px solid #667eea !important;
-  box-shadow: none !important;
+#login-page-wrapper .login-footer {
+  margin: 24px 0 0 !important;
+  font-size: 14px !important;
+  color: #888 !important;
 }
 
-#login-page-wrapper .login-btn-ghost:hover {
-  background: #667eea !important;
-  color: #fff !important;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
+#login-page-wrapper .login-register-link {
+  color: #667eea !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  transition: color 0.2s !important;
+}
+
+#login-page-wrapper .login-register-link:hover {
+  color: #764ba2 !important;
+  text-decoration: underline !important;
 }
 </style>
