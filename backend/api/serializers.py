@@ -128,11 +128,20 @@ class TaskSerializer(serializers.ModelSerializer):
             'review_target_username': other_user.username,
         }
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and instance.publisher_id == request.user.id:
+            data['contact_info'] = instance.contact_info or ''
+        return data
+
     def validate(self, attrs):
         if self.instance is None and not (attrs.get('contact_info') or '').strip():
             raise serializers.ValidationError({'contact_info': '请填写联系方式'})
-        if attrs.get('contact_info'):
-            attrs['contact_info'] = attrs['contact_info'].strip()
+        if 'contact_info' in attrs:
+            attrs['contact_info'] = (attrs['contact_info'] or '').strip()
+            if not attrs['contact_info']:
+                raise serializers.ValidationError({'contact_info': '请填写联系方式'})
         return attrs
 
 class OrderSerializer(serializers.ModelSerializer):

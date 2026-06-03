@@ -105,7 +105,7 @@
 
     <div class="detail-actions">
       <button
-        v-if="logged"
+        v-if="logged && !isMyTask"
         class="btn"
         :class="{ 'btn-disabled': !canAccept }"
         :disabled="!canAccept"
@@ -122,6 +122,7 @@ export default {
   data() {
     return {
       task: {},
+      me: null,
       logged: false,
       reviewForm: { rating: 5, comment: '' },
     }
@@ -156,7 +157,10 @@ export default {
       return 'status-default'
     },
     canAccept() {
-      return this.task.status === 'active' && this.logged
+      return this.task.status === 'active' && this.logged && !this.isMyTask
+    },
+    isMyTask() {
+      return !!(this.me?.id && this.task.publisher?.id === this.me.id)
     },
     acceptButtonText() {
       if (this.task.status === 'accepted') return '已接单'
@@ -183,8 +187,16 @@ export default {
     },
   },
   async mounted() {
-    await this.loadTask()
     this.logged = !!localStorage.getItem('access')
+    if (this.logged) {
+      try {
+        const r = await axios.get('/api/users/me/')
+        this.me = r.data
+      } catch (e) {
+        this.me = null
+      }
+    }
+    await this.loadTask()
   },
   methods: {
     async loadTask() {

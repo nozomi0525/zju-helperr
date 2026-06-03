@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.db import IntegrityError, transaction
 from django.db.models import Case, When, Value, IntegerField
 from .models import User, Task, Order, Review, Message, Report, Blacklist
@@ -98,6 +98,21 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         serializer.save(publisher=user)
+
+    def _ensure_publisher_can_modify(self, task):
+        user = self.request.user
+        if not user.is_authenticated or task.publisher_id != user.id:
+            raise PermissionDenied('只能操作自己发布的帖子')
+        if task.status != 'active':
+            raise ValidationError('该帖子已被接单或已完成，无法修改或删除')
+
+    def perform_update(self, serializer):
+        self._ensure_publisher_can_modify(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._ensure_publisher_can_modify(instance)
+        instance.delete()
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all().order_by('-created_at')

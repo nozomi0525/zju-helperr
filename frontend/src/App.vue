@@ -31,9 +31,12 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const isLoggedIn = ref(!!localStorage.getItem('access'))
 
+const GUIDE_SEEN_KEY = 'publish_guide_seen'
+
 function logout() {
   localStorage.removeItem('access')
   localStorage.removeItem('refresh')
+  sessionStorage.removeItem(GUIDE_SEEN_KEY)
   isLoggedIn.value = false
   router.push('/login')
 }

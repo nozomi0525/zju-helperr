@@ -61,8 +61,12 @@
         </div>
         <div class="task-actions">
           <router-link :to="`/task/${t.id}`" class="btn ghost">查看详情</router-link>
+          <template v-if="canManage(t)">
+            <button class="btn btn-edit" @click="openEdit(t)">编辑</button>
+            <button class="btn btn-danger" @click="removeTask(t)">删除</button>
+          </template>
           <button
-            v-if="logged"
+            v-if="logged && !isMyTask(t)"
             class="btn"
             :class="{ 'btn-disabled': !canAccept(t) }"
             :disabled="!canAccept(t)"
@@ -73,6 +77,48 @@
       <div class="task-footer">
         <span class="pill">类别：{{ categoryText(t.category) }}</span>
         <span class="tag">状态：{{ statusText(t.status) }}</span>
+        <span v-if="isMyTask(t)" class="tag tag-mine">我的发布</span>
+      </div>
+    </div>
+
+    <div v-if="showEditModal" class="edit-modal-backdrop" @click.self="closeEdit">
+      <div class="edit-modal card">
+        <h3>编辑帖子</h3>
+        <div class="edit-form-row">
+          <select v-model="editForm.category">
+            <option value="carpool">拼车</option>
+            <option value="errand">跑腿</option>
+            <option value="agency">代办</option>
+            <option value="emergency">特需</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div class="edit-form-row">
+          <input v-model="editForm.title" placeholder="标题" />
+        </div>
+        <div class="edit-form-row">
+          <input v-model="editForm.location" placeholder="位置" />
+        </div>
+        <div class="edit-form-row">
+          <input v-model="editForm.deadline" placeholder="时间" />
+        </div>
+        <div class="edit-form-row edit-payment-row">
+          <label><input type="radio" value="free" v-model="editForm.payment" /> 无偿</label>
+          <label><input type="radio" value="paid" v-model="editForm.payment" /> 有偿</label>
+        </div>
+        <div class="edit-form-row" v-if="editForm.payment === 'paid'">
+          <input v-model="editForm.reward" placeholder="报酬描述" />
+        </div>
+        <div class="edit-form-row">
+          <input v-model="editForm.remark" placeholder="任务说明" />
+        </div>
+        <div class="edit-form-row">
+          <input v-model="editForm.contact_info" placeholder="联系方式（仅接单人可见）" />
+        </div>
+        <div class="edit-modal-actions">
+          <button class="btn ghost" @click="closeEdit">取消</button>
+          <button class="btn primary" @click="saveEdit">保存</button>
+        </div>
       </div>
     </div>
   </div>
@@ -89,10 +135,28 @@ export default {
       statusFilter: '',
       showMineOnly: false,
       me: null,
-      logged: false
+      logged: false,
+      showEditModal: false,
+      editingTaskId: null,
+      editForm: {
+        category: 'carpool',
+        title: '',
+        location: '',
+        deadline: '',
+        payment: 'free',
+        reward: '',
+        remark: '',
+        contact_info: ''
+      }
     }
   },
   methods: {
+    isMyTask(t) {
+      return this.logged && this.me?.id && t.publisher?.id === this.me.id
+    },
+    canManage(t) {
+      return this.isMyTask(t) && t.status === 'active'
+    },
     categoryText(category) {
       if (!category) return '未知'
       if (category === 'carpool') return '拼车'
@@ -229,6 +293,79 @@ export default {
           || '接单失败，请重试'
         alert(msg)
         await this.load()
+      }
+    },
+    async openEdit(t) {
+      if (!this.canManage(t)) return
+      try {
+        const r = await axios.get(`/api/tasks/${t.id}/`)
+        const task = r.data
+        this.editingTaskId = task.id
+        this.editForm = {
+          category: task.category || 'other',
+          title: task.title || '',
+          location: task.location || '',
+          deadline: task.deadline || '',
+          payment: task.is_paid ? 'paid' : 'free',
+          reward: task.reward || '',
+          remark: task.remark || '',
+          contact_info: task.contact_info || ''
+        }
+        this.showEditModal = true
+      } catch (e) {
+        alert('加载帖子失败，请重试')
+      }
+    },
+    closeEdit() {
+      this.showEditModal = false
+      this.editingTaskId = null
+    },
+    async saveEdit() {
+      if (!this.editForm.title.trim()) { alert('请填写标题'); return }
+      if (!this.editForm.location.trim()) { alert('请填写地点'); return }
+      if (!this.editForm.deadline) { alert('请填写时间'); return }
+      if (this.editForm.payment === 'paid' && !this.editForm.reward.trim()) {
+        alert('请选择有偿并填写报酬描述')
+        return
+      }
+      if (!this.editForm.contact_info.trim()) {
+        alert('请填写联系方式')
+        return
+      }
+      try {
+        const payload = {
+          category: this.editForm.category,
+          title: this.editForm.title,
+          location: this.editForm.location,
+          deadline: this.editForm.deadline,
+          remark: this.editForm.remark,
+          contact_info: this.editForm.contact_info.trim(),
+          is_paid: this.editForm.payment === 'paid',
+          reward: this.editForm.payment === 'paid' ? this.editForm.reward : ''
+        }
+        await axios.patch(`/api/tasks/${this.editingTaskId}/`, payload)
+        alert('保存成功')
+        this.closeEdit()
+        await this.load()
+      } catch (e) {
+        const msg = e.response?.data?.detail
+          || (e.response?.data && Object.entries(e.response.data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`).join('\n'))
+          || '保存失败，请重试'
+        alert(msg)
+      }
+    },
+    async removeTask(t) {
+      if (!this.canManage(t)) return
+      if (!confirm(`确定删除「${t.title}」吗？删除后无法恢复。`)) return
+      try {
+        await axios.delete(`/api/tasks/${t.id}/`)
+        alert('已删除')
+        await this.load()
+      } catch (e) {
+        const msg = e.response?.data?.detail
+          || (e.response?.data && Object.values(e.response.data).flat().join(' '))
+          || '删除失败，请重试'
+        alert(msg)
       }
     }
   },
@@ -409,6 +546,10 @@ export default {
   background: transparent;
   border: 1px solid #cbd5e1;
   color: #0f172a;
+  text-decoration: none;
+}
+.task-actions .ghost:hover {
+  text-decoration: none;
 }
 .task-footer {
   display: flex;
@@ -433,6 +574,73 @@ export default {
 .tag {
   background: #f1f5f9;
   color: #475569;
+}
+.tag-mine {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.btn-edit {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+.btn-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.btn-danger:hover {
+  background: #fee2e2;
+}
+.edit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+.edit-modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 16px;
+}
+.edit-modal h3 {
+  margin: 0 0 18px;
+  color: #0f172a;
+}
+.edit-form-row {
+  margin-bottom: 14px;
+}
+.edit-form-row input,
+.edit-form-row select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+.edit-payment-row {
+  display: flex;
+  gap: 20px;
+}
+.edit-payment-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+}
+.edit-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 .btn-disabled,
 .btn:disabled {
