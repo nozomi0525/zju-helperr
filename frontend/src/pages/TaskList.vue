@@ -12,7 +12,6 @@
           <option value="errand">跑腿</option>
           <option value="agency">代办</option>
           <option value="emergency">特需</option>
-          <option value="other">其他</option>
         </select>
         <select v-model="paidFilter">
           <option value="">全部付费类型</option>
@@ -90,7 +89,6 @@
             <option value="errand">跑腿</option>
             <option value="agency">代办</option>
             <option value="emergency">特需</option>
-            <option value="other">其他</option>
           </select>
         </div>
         <div class="edit-form-row">
@@ -302,7 +300,7 @@ export default {
         const task = r.data
         this.editingTaskId = task.id
         this.editForm = {
-          category: task.category || 'other',
+          category: task.category || 'carpool',
           title: task.title || '',
           location: task.location || '',
           deadline: task.deadline || '',
