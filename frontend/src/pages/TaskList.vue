@@ -53,7 +53,7 @@
             <span class="location-label">地址：</span>{{ t.location || '未知地点' }}
           </div>
           <div class="task-meta-extra">
-            <span class="meta-chip">{{ paymentText(t.is_paid) }}</span>
+            <span class="meta-chip" :class="{ 'meta-chip-reward': t.is_paid }">{{ rewardText(t) }}</span>
             <span class="meta-chip">时间：{{ formatDate(t.deadline || t.created_at) }}</span>
           </div>
           <p v-if="t.remark" class="task-desc">{{ t.remark }}</p>
@@ -260,8 +260,11 @@ export default {
         return new Date(b.created_at) - new Date(a.created_at)
       })
     },
-    paymentText(isPaid) {
-      return isPaid ? '有偿' : '无偿'
+    rewardText(t) {
+      if (!t.is_paid) return '无偿'
+      if (!t.reward) return '面议'
+      const r = String(t.reward).trim()
+      return /^\d+(\.\d+)?$/.test(r) ? `¥${r}` : r
     },
     formatDate(value) {
       if (!value) return '未知时间'
@@ -499,6 +502,11 @@ export default {
   color: #475569;
   font-size: 0.82rem;
   font-weight: 600;
+}
+.meta-chip-reward {
+  background: #fef3c7;
+  color: #b45309;
+  font-weight: 700;
 }
 .status-chip {
   padding: 5px 11px;
