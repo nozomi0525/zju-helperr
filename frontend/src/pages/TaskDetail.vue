@@ -70,6 +70,11 @@
         class="btn"
         @click="confirmComplete"
       >确认任务已完成</button>
+      <button
+        v-if="orderInfo.can_revoke"
+        class="btn btn-revoke"
+        @click="revokeTask"
+      >撤销帖子</button>
     </div>
 
     <div v-if="orderInfo && orderInfo.can_review" class="detail-section review-section">
@@ -111,7 +116,12 @@
         :disabled="!canAccept"
         @click="accept"
       >{{ acceptButtonText }}</button>
-      <div class="hint-text" v-else>请登录后接单，或返回帖子列表浏览更多任务。</div>
+      <button
+        v-else-if="logged && isMyTask && canRevoke"
+        class="btn btn-revoke"
+        @click="revokeTask"
+      >撤销帖子</button>
+      <div class="hint-text" v-else-if="!logged">请登录后接单，或返回帖子列表浏览更多任务。</div>
     </div>
   </div>
 </template>
@@ -161,6 +171,9 @@ export default {
     },
     isMyTask() {
       return !!(this.me?.id && this.task.publisher?.id === this.me.id)
+    },
+    canRevoke() {
+      return this.orderInfo?.can_revoke === true
     },
     acceptButtonText() {
       if (this.task.status === 'accepted') return '已接单'
@@ -225,6 +238,20 @@ export default {
         await this.loadTask()
       } catch (e) {
         alert(this.errorMessage(e, '确认失败'))
+        await this.loadTask()
+      }
+    },
+    async revokeTask() {
+      if (!this.canRevoke) return
+      if (!confirm(
+        `确定撤销「${this.task.title}」吗？\n将取消当前接单，帖子恢复为「进行中」，其他人可重新接单。`
+      )) return
+      try {
+        await axios.post(`/api/tasks/${this.task.id}/revoke/`)
+        alert('已撤销，帖子已恢复为进行中')
+        await this.loadTask()
+      } catch (e) {
+        alert(this.errorMessage(e, '撤销失败，请重试'))
         await this.loadTask()
       }
     },
@@ -378,6 +405,14 @@ export default {
 .hint-text {
   color: #64748b;
   font-size: 0.95rem;
+}
+.btn-revoke {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+.btn-revoke:hover {
+  background: #ffedd5;
 }
 .btn-disabled,
 .btn:disabled {

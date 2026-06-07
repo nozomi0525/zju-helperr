@@ -65,6 +65,11 @@
             <button class="btn btn-danger" @click="removeTask(t)">删除</button>
           </template>
           <button
+            v-if="canRevoke(t)"
+            class="btn btn-revoke"
+            @click="revokeTask(t)"
+          >撤销帖子</button>
+          <button
             v-if="logged && !isMyTask(t)"
             class="btn"
             :class="{ 'btn-disabled': !canAccept(t) }"
@@ -154,6 +159,9 @@ export default {
     },
     canManage(t) {
       return this.isMyTask(t) && t.status === 'active'
+    },
+    canRevoke(t) {
+      return this.isMyTask(t) && t.status === 'accepted'
     },
     categoryText(category) {
       if (!category) return '未知'
@@ -366,6 +374,22 @@ export default {
         const msg = e.response?.data?.detail
           || (e.response?.data && Object.values(e.response.data).flat().join(' '))
           || '删除失败，请重试'
+        alert(msg)
+      }
+    },
+    async revokeTask(t) {
+      if (!this.canRevoke(t)) return
+      if (!confirm(
+        `确定撤销「${t.title}」吗？\n将取消当前接单，帖子恢复为「进行中」，其他人可重新接单。`
+      )) return
+      try {
+        await axios.post(`/api/tasks/${t.id}/revoke/`)
+        alert('已撤销，帖子已恢复为进行中')
+        await this.load()
+      } catch (e) {
+        const msg = e.response?.data?.detail
+          || (e.response?.data && Object.values(e.response.data).flat().join(' '))
+          || '撤销失败，请重试'
         alert(msg)
       }
     }
@@ -597,6 +621,14 @@ export default {
 }
 .btn-danger:hover {
   background: #fee2e2;
+}
+.btn-revoke {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+.btn-revoke:hover {
+  background: #ffedd5;
 }
 .edit-modal-backdrop {
   position: fixed;

@@ -114,6 +114,28 @@ class TaskViewSet(viewsets.ModelViewSet):
         self._ensure_publisher_can_modify(instance)
         instance.delete()
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def revoke(self, request, pk=None):
+        """发布者撤销已接单帖子：取消进行中的订单，帖子恢复为进行中。"""
+        task = self.get_object()
+        user = request.user
+        if task.publisher_id != user.id:
+            raise PermissionDenied('只能撤销自己发布的帖子')
+        if task.status != 'accepted':
+            raise ValidationError('仅已接单且未完成的帖子可撤销')
+        order = task.orders.filter(status='pending').order_by('-created_at').first()
+        if not order:
+            raise ValidationError('未找到进行中的订单')
+        if order.publisher_confirmed or order.acceptor_confirmed:
+            raise ValidationError('订单已进入确认流程，无法撤销')
+        with transaction.atomic():
+            order.status = 'cancelled'
+            order.save(update_fields=['status'])
+            task.status = 'active'
+            task.save(update_fields=['status', 'updated_at'])
+        serializer = self.get_serializer(task)
+        return Response(serializer.data)
+
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all().order_by('-created_at')
     serializer_class = OrderSerializer

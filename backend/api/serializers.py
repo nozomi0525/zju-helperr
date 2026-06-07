@@ -121,6 +121,13 @@ class TaskSerializer(serializers.ModelSerializer):
                 or (is_acceptor and not order.acceptor_confirmed)
             ),
             'can_review': order.status == 'completed' and my_review is None,
+            'can_revoke': (
+                is_publisher
+                and obj.status == 'accepted'
+                and order.status == 'pending'
+                and not order.publisher_confirmed
+                and not order.acceptor_confirmed
+            ),
             'my_review': {
                 'rating': my_review.rating,
                 'comment': my_review.comment,
