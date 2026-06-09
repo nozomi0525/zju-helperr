@@ -81,12 +81,15 @@ class TaskSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return None
-        is_acceptor = obj.orders.filter(
-            acceptor=request.user, status__in=['pending', 'completed']
-        ).exists()
-        if is_acceptor:
-            return obj.contact_info or None
-        return None
+        order = (
+            obj.orders.filter(status__in=['pending', 'completed'])
+            .order_by('-created_at')
+            .first()
+        )
+        if not order or order.acceptor_id != request.user.id:
+            return None
+        contact = (obj.contact_info or '').strip()
+        return contact or None
 
     def get_order_info(self, obj):
         request = self.context.get('request')
@@ -108,6 +111,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
         my_review = order.reviews.filter(reviewer=user).first()
         other_user = order.acceptor if is_publisher else obj.publisher
+        contact = (obj.contact_info or '').strip() or None
 
         return {
             'order_id': order.id,
@@ -116,6 +120,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'acceptor_confirmed': order.acceptor_confirmed,
             'acceptor_username': order.acceptor.username,
             'my_role': 'publisher' if is_publisher else 'acceptor',
+            'publisher_contact': contact if is_acceptor else None,
             'can_confirm': order.status == 'pending' and (
                 (is_publisher and not order.publisher_confirmed)
                 or (is_acceptor and not order.acceptor_confirmed)
@@ -123,6 +128,13 @@ class TaskSerializer(serializers.ModelSerializer):
             'can_review': order.status == 'completed' and my_review is None,
             'can_revoke': (
                 is_publisher
+                and obj.status == 'accepted'
+                and order.status == 'pending'
+                and not order.publisher_confirmed
+                and not order.acceptor_confirmed
+            ),
+            'can_cancel_accept': (
+                is_acceptor
                 and obj.status == 'accepted'
                 and order.status == 'pending'
                 and not order.publisher_confirmed

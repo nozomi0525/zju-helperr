@@ -70,6 +70,11 @@
             @click="revokeTask(t)"
           >撤销帖子</button>
           <button
+            v-if="canCancelAccept(t)"
+            class="btn btn-cancel-accept"
+            @click="cancelAccept(t)"
+          >取消接单</button>
+          <button
             v-if="logged && !isMyTask(t)"
             class="btn"
             :class="{ 'btn-disabled': !canAccept(t) }"
@@ -162,6 +167,9 @@ export default {
     },
     canRevoke(t) {
       return this.isMyTask(t) && t.status === 'accepted'
+    },
+    canCancelAccept(t) {
+      return this.logged && t.is_my_accepted && t.status === 'accepted'
     },
     categoryText(category) {
       if (!category) return '未知'
@@ -392,6 +400,34 @@ export default {
           || '撤销失败，请重试'
         alert(msg)
       }
+    },
+    async cancelAccept(t) {
+      if (!this.canCancelAccept(t)) return
+      if (!confirm(`确定取消接单「${t.title}」吗？\n取消后该帖子将恢复为进行中，其他人可重新接单。`)) return
+      try {
+        await axios.post(`/api/tasks/${t.id}/cancel_accept/`)
+        alert('已取消接单')
+      } catch (e) {
+        alert(this.errorMessage(e, '取消接单失败，请重试'))
+        return
+      }
+      try {
+        await this.load()
+      } catch (e) {
+        alert(this.errorMessage(e, '列表刷新失败，请手动刷新页面'))
+      }
+    },
+    errorMessage(e, fallback) {
+      const data = e.response?.data
+      if (!data) return fallback
+      if (typeof data.detail === 'string') return data.detail
+      if (Array.isArray(data.detail)) return data.detail.join(' ')
+      if (typeof data === 'object') {
+        return Object.entries(data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : v}`)
+          .join('\n')
+      }
+      return fallback
     }
   },
   mounted() {
@@ -629,6 +665,14 @@ export default {
 }
 .btn-revoke:hover {
   background: #ffedd5;
+}
+.btn-cancel-accept {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.btn-cancel-accept:hover {
+  background: #e2e8f0;
 }
 .edit-modal-backdrop {
   position: fixed;

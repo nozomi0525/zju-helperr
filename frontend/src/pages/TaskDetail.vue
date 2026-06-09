@@ -44,9 +44,9 @@
       <p class="section-content">{{task.remark || '暂无补充说明。'}}</p>
     </div>
 
-    <div class="detail-section contact-section" v-if="task.publisher_contact">
+    <div class="detail-section contact-section" v-if="acceptorContact">
       <div class="section-title">发布者联系方式</div>
-      <p class="section-content contact-value">{{ task.publisher_contact }}</p>
+      <p class="section-content contact-value">{{ acceptorContact }}</p>
       <p class="contact-tip">此信息仅对接单者可见，请勿随意传播。</p>
     </div>
 
@@ -75,6 +75,11 @@
         class="btn btn-revoke"
         @click="revokeTask"
       >撤销帖子</button>
+      <button
+        v-if="orderInfo.can_cancel_accept"
+        class="btn btn-cancel-accept"
+        @click="cancelAccept"
+      >取消接单</button>
     </div>
 
     <div v-if="orderInfo && orderInfo.can_review" class="detail-section review-section">
@@ -121,6 +126,11 @@
         class="btn btn-revoke"
         @click="revokeTask"
       >撤销帖子</button>
+      <button
+        v-else-if="logged && canCancelAccept"
+        class="btn btn-cancel-accept"
+        @click="cancelAccept"
+      >取消接单</button>
       <div class="hint-text" v-else-if="!logged">请登录后接单，或返回帖子列表浏览更多任务。</div>
     </div>
   </div>
@@ -175,6 +185,12 @@ export default {
     canRevoke() {
       return this.orderInfo?.can_revoke === true
     },
+    canCancelAccept() {
+      return this.orderInfo?.can_cancel_accept === true
+    },
+    acceptorContact() {
+      return this.task.publisher_contact || this.orderInfo?.publisher_contact || ''
+    },
     acceptButtonText() {
       if (this.task.status === 'accepted') return '已接单'
       if (this.task.status === 'completed') return '已完成'
@@ -210,6 +226,11 @@ export default {
       }
     }
     await this.loadTask()
+  },
+  watch: {
+    '$route.params.id'() {
+      this.loadTask()
+    },
   },
   methods: {
     async loadTask() {
@@ -252,6 +273,20 @@ export default {
         await this.loadTask()
       } catch (e) {
         alert(this.errorMessage(e, '撤销失败，请重试'))
+        await this.loadTask()
+      }
+    },
+    async cancelAccept() {
+      if (!this.canCancelAccept) return
+      if (!confirm(
+        `确定取消接单「${this.task.title}」吗？\n取消后该帖子将恢复为进行中，其他人可重新接单。`
+      )) return
+      try {
+        await axios.post(`/api/tasks/${this.task.id}/cancel_accept/`)
+        alert('已取消接单')
+        await this.loadTask()
+      } catch (e) {
+        alert(this.errorMessage(e, '取消接单失败，请重试'))
         await this.loadTask()
       }
     },
@@ -413,6 +448,14 @@ export default {
 }
 .btn-revoke:hover {
   background: #ffedd5;
+}
+.btn-cancel-accept {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.btn-cancel-accept:hover {
+  background: #e2e8f0;
 }
 .btn-disabled,
 .btn:disabled {

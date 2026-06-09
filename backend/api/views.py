@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.db import IntegrityError, transaction
-from django.db.models import Case, When, Value, IntegerField
+from django.db.models import Case, When, Value, IntegerField, Exists, OuterRef
 from .models import User, Task, Order, Review, Message, Report, Blacklist
 from .serializers import UserSerializer, TaskSerializer, OrderSerializer, ReviewSerializer, MessageSerializer, ReportSerializer, BlacklistSerializer
 from .credit import recalculate_credit_score
@@ -80,17 +80,18 @@ class TaskViewSet(viewsets.ModelViewSet):
         qs = Task.objects.all()
         user = self.request.user
         if user.is_authenticated:
+            pending_my_order = Order.objects.filter(
+                task=OuterRef('pk'),
+                acceptor=user,
+                status='pending',
+            )
             qs = qs.annotate(
                 is_my_accepted=Case(
-                    When(
-                        orders__acceptor=user,
-                        orders__status='pending',
-                        then=Value(1),
-                    ),
+                    When(Exists(pending_my_order), then=Value(1)),
                     default=Value(0),
                     output_field=IntegerField(),
                 )
-            ).distinct().order_by('-is_my_accepted', '-created_at')
+            ).order_by('-is_my_accepted', '-created_at')
         else:
             qs = qs.order_by('-created_at')
         return qs
@@ -128,6 +129,24 @@ class TaskViewSet(viewsets.ModelViewSet):
             raise ValidationError('未找到进行中的订单')
         if order.publisher_confirmed or order.acceptor_confirmed:
             raise ValidationError('订单已进入确认流程，无法撤销')
+        with transaction.atomic():
+            order.status = 'cancelled'
+            order.save(update_fields=['status'])
+            task.status = 'active'
+            task.save(update_fields=['status', 'updated_at'])
+        serializer = self.get_serializer(task)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def cancel_accept(self, request, pk=None):
+        """接单人取消自己的接单，帖子恢复为进行中。"""
+        task = self.get_object()
+        user = request.user
+        order = task.orders.filter(acceptor=user, status='pending').order_by('-created_at').first()
+        if not order:
+            raise ValidationError('未找到您进行中的接单')
+        if order.publisher_confirmed or order.acceptor_confirmed:
+            raise ValidationError('订单已进入确认流程，无法取消接单')
         with transaction.atomic():
             order.status = 'cancelled'
             order.save(update_fields=['status'])
